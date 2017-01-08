@@ -1,0 +1,14 @@
+# Ignore any dumped ROMs
+*.gb
+
+# C build artifacts
+*.o
+*.obj
+*.map
+*.lib
+*.a
+*.la
+*.lo
+*.dll
+*.so
+*.exe
