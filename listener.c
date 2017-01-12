@@ -89,15 +89,13 @@ int main(int argc, char *argv[])
       {
 				if (bitCounter != 0 || currentByte != 0)
 				{
-					//printf("[ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
-					printf("err");
+					printf("[ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
 				}
 				bitCounter = 0;
 				currentByte = 0;
       }
 
       int inBit = digitalRead(SI_PIN);
-      //printf("      -%d- (%dus)\n", inBit, (micros() - lastReceive));
 
       if (inBit == HIGH)
       {
@@ -120,8 +118,6 @@ int main(int argc, char *argv[])
 
       lastReceive = micros();
     }
-
-    delayMicroseconds(10);
   }
   endwin();
   printf("looped\n");
