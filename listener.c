@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
   timeout(0);
   while (1)
   {
-		// Break the loop when ESC key pressed
+    // Break the loop when ESC key pressed
     c = getch();
     if (c == 27)
     {
@@ -81,39 +81,39 @@ int main(int argc, char *argv[])
     }
     else if (clockPin == HIGH && clocked == 1)
     {
-    	// rising edge bit check
+      // rising edge bit check
       clocked = 0;
 
-			// Using the Gameboy clock it should be ~120us per clock, any longer it's likely a new byte so reset
+      // Using the Gameboy clock it should be ~120us per clock, any longer it's likely a new byte so reset
       if (lastReceive > 0 && micros() - lastReceive > 750)
       {
-				if (bitCounter != 0 || currentByte != 0)
-				{
-					printf("[ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
-				}
-				bitCounter = 0;
-				currentByte = 0;
+        if (bitCounter != 0 || currentByte != 0)
+        {
+          printf("[ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
+        }
+        bitCounter = 0;
+        currentByte = 0;
       }
 
       int inBit = digitalRead(SI_PIN);
 
       if (inBit == HIGH)
       {
-				currentByte |= (inBit << (7 - bitCounter));
+        currentByte |= (inBit << (7 - bitCounter));
       }
 
       if (bitCounter == 7)
       {
-				//printf("Byte: %2x\n", currentByte);
-				buf[readCount] = currentByte;
-				readCount++;
+        //printf("Byte: %2x\n", currentByte);
+        buf[readCount] = currentByte;
+        readCount++;
 
-				currentByte = 0;
-				bitCounter = 0;
+        currentByte = 0;
+        bitCounter = 0;
       }
       else
       {
-				bitCounter++;
+        bitCounter++;
       }
 
       lastReceive = micros();
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
   endwin();
   printf("looped\n");
 
-	// Write out the buffer to the file
+  // Write out the buffer to the file
   fwrite(buf, sizeof(buf[0]), sizeof(buf) / sizeof(buf[0]), fp);
   fclose(fp);
 
