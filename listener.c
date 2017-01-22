@@ -21,11 +21,10 @@
 
 void initWiringPi()
 {
-  printw("wiringPi setting up...");
+  printw("Setting up WiringPi...\n");
   wiringPiSetupGpio();
-  printw("wiringPi set up\n");
 
-  printw("pins setting...");
+  printw(" - Pin mode setting...");
   pinMode(VDD_PIN, OUTPUT);
   pinMode(SO_PIN, OUTPUT);
   pinMode(SI_PIN, INPUT);
@@ -35,12 +34,19 @@ void initWiringPi()
   digitalWrite(VDD_PIN, HIGH);
   // Write high to outbound clock, triggers on low
   digitalWrite(SD_PIN, HIGH);
-  printw("pins set\n");
+  printw("Done\n");
 
   // Attempt to get high privs
-  printw("attempt privs...");
-  piHiPri(75);
-  printw("privs set\n");
+  printw(" - Priviledge raising...");
+  if (piHiPri(75) == 0)
+  {
+    printw("Done\n");
+  }
+  else {
+    printw("Failed\n");
+  }
+  
+  printw("WiringPi set up\n");
 }
 
 int main(int argc, char *argv[])
@@ -107,7 +113,7 @@ int main(int argc, char *argv[])
         if (bitCounter != 0 || currentByte != 0)
         {
           // If we reset while having partial byte data there's likely been a timing error
-          printw("[ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
+          printw(" - [ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
 
           bitCounter = 0;
           currentByte = 0;
