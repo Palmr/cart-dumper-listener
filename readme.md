@@ -22,7 +22,7 @@ Have [WiringPi](http://wiringpi.com/) installed on your Raspberry Pi, ncurses, g
 
 - Start the Gameboy running the cart-dumper ROM
 - Connect it to the gameboy with a breakout board connected to pins 29-39
+  - ![photo](./images/connection.jpg)
 - Start the listener on the Raspberry Pi
-- Swap Gameboy cartridges
-- Press Start to begin the dump
+- Perform a dump [following instructions for the ROM](https://github.com/Palmr/cart-dumper#to-use)
 - When the dump is complete press Escape in the listener terminal window
