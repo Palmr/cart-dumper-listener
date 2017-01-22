@@ -13,28 +13,19 @@
 // inbound clock
 #define SC_PIN 26
 
+// Byte we send out on recieving a byte
 #define OKAY_BYTE 0xDE
 
-// 16 k rom/ram, so buffer of one of those
-#define READ_BUFFER_SIZE 1024 * 16 * 2
+// 16k byte read buffer (1 bank size)
+#define READ_BUFFER_SIZE 0x4000
 
-int main(int argc, char *argv[])
+void initWiringPi()
 {
-  if (argc != 2)
-  {
-    printf("Usage: %s <outputFile>\n", argv[0]);
-    return 1;
-  }
-
-  // Open file for write
-  FILE *fp;
-  fp = fopen(argv[1], "w+b");
-
-  printf("wiringPi setting up...");
+  printw("wiringPi setting up...");
   wiringPiSetupGpio();
-  printf("wiringPi set up\n");
+  printw("wiringPi set up\n");
 
-  printf("pins setting...");
+  printw("pins setting...");
   pinMode(VDD_PIN, OUTPUT);
   pinMode(SO_PIN, OUTPUT);
   pinMode(SI_PIN, INPUT);
@@ -44,30 +35,56 @@ int main(int argc, char *argv[])
   digitalWrite(VDD_PIN, HIGH);
   // Write high to outbound clock, triggers on low
   digitalWrite(SD_PIN, HIGH);
-  printf("pins set\n");
+  printw("pins set\n");
 
   // Attempt to get high privs
-  printf("attempt privs...");
+  printw("attempt privs...");
   piHiPri(75);
-  printf("privs set\n");
+  printw("privs set\n");
+}
 
+int main(int argc, char *argv[])
+{
+  if (argc != 2)
+  {
+    printf("Usage: %s <outputFile>\n", argv[0]);
+    return 1;
+  }
+  
+  // Init ncurses
+  initscr();
+
+  // Open file for write
+  FILE *fp;
+  fp = fopen(argv[1], "w+b");
+
+  // Init WiringPi
+  initWiringPi();
+
+  // Read buffer
   unsigned char buf[READ_BUFFER_SIZE];
   unsigned long readCount = 0;
+
+  // Flag for the clock tick being noticed
+  int clocked = 0;
+
+  // Byte-reading vars
   unsigned char bitCounter = 0;
   unsigned char currentByte = 0;
   unsigned long lastReceive = 0;
 
-  int clocked = 0;
-
-  printf("looping...\n");
-  int c;
-  initscr();
+  // Set ncurses timeout to nothing (to make the getch() non-blocking)
   timeout(0);
+
+  // Keypress char to test if we want to break out the loop
+  int keyChar;
+  
+  printw("Waiting for data... (press 'q' to stop)\n");
   while (1)
   {
-    // Break the loop when ESC key pressed
-    c = getch();
-    if (c == 27)
+    // Break the loop when ESC/q key pressed
+    keyChar = getch();
+    if (keyChar == 27 || keyChar == 'q')
     {
       break;
     }
@@ -89,10 +106,12 @@ int main(int argc, char *argv[])
       {
         if (bitCounter != 0 || currentByte != 0)
         {
-          printf("[ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
+          // If we reset while having partial byte data there's likely been a timing error
+          printw("[ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
+
+          bitCounter = 0;
+          currentByte = 0;
         }
-        bitCounter = 0;
-        currentByte = 0;
       }
 
       int inBit = digitalRead(SI_PIN);
@@ -102,29 +121,41 @@ int main(int argc, char *argv[])
         currentByte |= (inBit << (7 - bitCounter));
       }
 
-      if (bitCounter == 7)
-      {
-        //printf("Byte: %2x\n", currentByte);
-        buf[readCount] = currentByte;
-        readCount++;
+      bitCounter++;
 
+      if (bitCounter == 8)
+      {
+        // When we have a full byte, put it in the write-buffer
+        buf[readCount++] = currentByte;
+
+        // Reset ready for next byte
         currentByte = 0;
         bitCounter = 0;
       }
-      else
-      {
-        bitCounter++;
-      }
 
+      // Store the last recieve time in us to check for errors
       lastReceive = micros();
     }
+    
+    // When the buffer gets full, write it out to the file
+    if (readCount == READ_BUFFER_SIZE) 
+    {
+      printw(" - Writing bufer\n");
+      fwrite(buf, sizeof(buf[0]), readCount, fp);
+      readCount = 0;
+    }
   }
-  endwin();
-  printf("looped\n");
 
-  // Write out the buffer to the file
-  fwrite(buf, sizeof(buf[0]), sizeof(buf) / sizeof(buf[0]), fp);
+  // Write anything left in the buffer out
+  if (readCount > 0)
+  {
+    fwrite(buf, sizeof(buf[0]), readCount, fp);
+  }
   fclose(fp);
+  
+  printw("Finished recieving data\n");
+
+  endwin();
 
   return 0;
 }
