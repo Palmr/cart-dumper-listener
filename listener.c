@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
     // When the buffer gets full, write it out to the file
     if (readCount == READ_BUFFER_SIZE) 
     {
-      printw(" - Writing bufer\n");
+      printw(" - Writing buffer\n");
       fwrite(buf, sizeof(buf[0]), readCount, fp);
       readCount = 0;
     }
