@@ -19,6 +19,10 @@
 // 16k byte read buffer (1 bank size)
 #define READ_BUFFER_SIZE 0x4000
 
+// Cart header positions
+#define CART_TITLE 0x0134
+#define CART_ROM_SIZE 0x0148
+
 void initWiringPi()
 {
   printw("Setting up WiringPi...\n");
@@ -38,15 +42,35 @@ void initWiringPi()
 
   // Attempt to get high privs
   printw(" - Priviledge raising...");
-  if (piHiPri(75) == 0)
+  if (piHiPri(0) == 0)
   {
     printw("Done\n");
   }
   else {
     printw("Failed\n");
   }
-  
+
   printw("WiringPi set up\n");
+}
+
+void parseHeader(unsigned char * buffer)
+{
+  // Parse title from the header
+  printw("Cartridge Title: ");
+  unsigned char *ptr = buffer + CART_TITLE;
+  for (int i = 0; i < 16; i++) {
+    if (*ptr == '\0')
+    {
+      break;
+    }
+
+    printw("%c", *(ptr++));
+  }
+  printw("\n");
+
+  // Calculate bytes to read from the header
+  unsigned long bytesToRead = 0x8000 << *(buffer + CART_ROM_SIZE);
+  printw("Bytes to read: %lu\n", bytesToRead);
 }
 
 int main(int argc, char *argv[])
@@ -56,7 +80,7 @@ int main(int argc, char *argv[])
     printf("Usage: %s <outputFile>\n", argv[0]);
     return 1;
   }
-  
+
   // Init ncurses
   initscr();
 
@@ -67,9 +91,8 @@ int main(int argc, char *argv[])
   // Init WiringPi
   initWiringPi();
 
-  // Read buffer
-  unsigned char buf[READ_BUFFER_SIZE];
-  unsigned long readCount = 0;
+  // Flag for the transfer being started
+  int started = 0;
 
   // Flag for the clock tick being noticed
   int clocked = 0;
@@ -79,12 +102,17 @@ int main(int argc, char *argv[])
   unsigned char currentByte = 0;
   unsigned long lastReceive = 0;
 
+  // Read buffer
+  unsigned long totalBytesRead = 0;
+  unsigned char buf[READ_BUFFER_SIZE];
+  unsigned long bufIndex = 0;
+
   // Set ncurses timeout to nothing (to make the getch() non-blocking)
   timeout(0);
 
   // Keypress char to test if we want to break out the loop
   int keyChar;
-  
+
   printw("Waiting for data... (press 'q' to stop)\n");
   while (1)
   {
@@ -92,6 +120,13 @@ int main(int argc, char *argv[])
     keyChar = getch();
     if (keyChar == 27 || keyChar == 'q')
     {
+      break;
+    }
+
+    // End if it's been 2s since the last byte
+    if (started != 0 && micros() - lastReceive > 2000)
+    {
+      printw("Finished transferring\n");
       break;
     }
 
@@ -113,7 +148,7 @@ int main(int argc, char *argv[])
         if (bitCounter != 0 || currentByte != 0)
         {
           // If we reset while having partial byte data there's likely been a timing error
-          printw(" - [ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", readCount, (micros() - lastReceive), bitCounter, currentByte);
+          printw(" - [ERROR] byte[%2x] reset, lr=(%dus), bc=[%d], cb=%2x\n", totalBytesRead, (micros() - lastReceive), bitCounter, currentByte);
 
           bitCounter = 0;
           currentByte = 0;
@@ -132,33 +167,38 @@ int main(int argc, char *argv[])
       if (bitCounter == 8)
       {
         // When we have a full byte, put it in the write-buffer
-        buf[readCount++] = currentByte;
+        buf[bufIndex++] = currentByte;
 
         // Reset ready for next byte
         currentByte = 0;
         bitCounter = 0;
+
+        if (totalBytesRead++ == 0x014F) {
+          parseHeader(buf);
+        }
+
+        // When the buffer gets full, write it out to the file
+        if (bufIndex == READ_BUFFER_SIZE)
+        {
+          fwrite(buf, sizeof(buf[0]), bufIndex, fp);
+          bufIndex = 0;
+        }
       }
 
       // Store the last recieve time in us to check for errors
       lastReceive = micros();
-    }
-    
-    // When the buffer gets full, write it out to the file
-    if (readCount == READ_BUFFER_SIZE) 
-    {
-      printw(" - Writing buffer\n");
-      fwrite(buf, sizeof(buf[0]), readCount, fp);
-      readCount = 0;
+
+      started = 1; // flag transfer started
     }
   }
 
   // Write anything left in the buffer out
-  if (readCount > 0)
+  if (bufIndex > 0)
   {
-    fwrite(buf, sizeof(buf[0]), readCount, fp);
+    fwrite(buf, sizeof(buf[0]), bufIndex, fp);
   }
   fclose(fp);
-  
+
   printw("Finished recieving data\n");
 
   endwin();
